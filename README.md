@@ -1,22 +1,46 @@
-# OneConfigExampleMod
+# Hypixel Skyblock Bazaar Flipping Mod
 
-![Powered by OneConfig](https://polyfrost.org/media/branding/badges/badge_1.svg)
-![Compact Powered by OneConfig](https://polyfrost.org/media/branding/badges/badge_2.svg)
-![Minimal Powered by OneConfig](https://polyfrost.org/media/branding/badges/badge_3.svg)
-![Minimal Compact Powered by OneConfig](https://polyfrost.org/media/branding/badges/badge_4.svg)
+## A mod for automating and optimizing Bazaar flipping in Hypixel Skyblock, built using OneConfig for easy configuration.
 
-Example mod implementing OneConfig.
+# Features
 
-## How to use
+- Bazaar Flipping: Automatically finds profitable items to flip on the Hypixel Bazaar.
 
-- Copy the template either by using GitHub's "Use this template" feature or downloading the repo manually.
-- **Remove the license named "LICENSE-TEMPLATE" and choose a new one.**
-- Refactor the template (specifically, the modid, version and name in the gradle.properties and most of the class names)
-  to a different name.
-- Have fun modding! :D
+- Real-time Data: Uses the Hypixel API to fetch the latest buy and sell prices.
 
-## Need to update to a newer commit of this template?
+- Customizable Settings: Configure your flipping strategy through OneConfig.
 
-Check out these update guides:
-- [Updating to commit `fd8e095`](update-to-fd8e095.md) (most recent update)
-- [Updating to commit `301a6ca`](update-to-301a6ca.md)
+- Profit Tracking: Displays estimated profit margins for selected items.
+
+# Installation
+
+- Download the latest version of the mod.
+
+- Place the .jar file in your Minecraft mods folder.
+
+- Launch Minecraft with Forge. 
+
+- Open OneConfig in-game (Press RShift).
+
+- Locate the settings for the Bazaar Flipping mod.
+
+- Enter your Hypixel API Key (you can generate one at Hypixel API https://developer.hypixel.net/).
+
+- Configure your preferred flipping parameters (e.g., minimun item sold).
+
+## Save your settings and start flipping!
+
+# Notes
+
+Ensure you have an active Hypixel API key for accurate pricing data.
+
+- Use at your own risk—flipping strategies may change due to market fluctuations.
+
+This mod does not automate purchases/sales; it only provides information to assist with flipping. as it is forbidden !
+
+# Credits
+
+Developed by [Sallie May] using OneConfig.
+
+Happy flipping! 💰
+
