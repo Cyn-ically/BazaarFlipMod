@@ -262,23 +262,26 @@ public class ExampleMod {
 
             mc.fontRendererObj.drawStringWithShadow("§l§6Bazaar Flips (Profit %)", scaledX + 5, scaledY + 5, BazaarConfig.getTextColor());
             mc.fontRendererObj.drawStringWithShadow("§l§6Bazaar Flips (Total Profit)", scaledX + 205, scaledY + 5, BazaarConfig.getTextColor());
-
-            synchronized (this) {
-                int y = scaledY + 25;
-                for (int i = 0; i < 5; i++) {
-                    if (i < topItemsByPercentage.size()) {
-                        BazaarItem item = topItemsByPercentage.get(i);
-                        drawItemInfo(mc, item, scaledX + 5, y, true);
+            if (BazaarConfig.apiKey.isEmpty()) {
+                mc.fontRendererObj.drawStringWithShadow("§cNo API key, press RShift to set", scaledX + 10, scaledY + 25, 0xFF5555);
+            } else {
+                synchronized (this) {
+                    int y = scaledY + 25;
+                    for (int i = 0; i < 5; i++) {
+                        if (i < topItemsByPercentage.size()) {
+                            BazaarItem item = topItemsByPercentage.get(i);
+                            drawItemInfo(mc, item, scaledX + 5, y, true);
+                        }
+                        if (i < topItemsByMoney.size()) {
+                            BazaarItem item = topItemsByMoney.get(i);
+                            drawItemInfo(mc, item, scaledX + 205, y, false);
+                        }
+                        y += 100;
                     }
-                    if (i < topItemsByMoney.size()) {
-                        BazaarItem item = topItemsByMoney.get(i);
-                        drawItemInfo(mc, item, scaledX + 205, y, false);
-                    }
-                    y += 100;
                 }
-            }
 
-            GlStateManager.popMatrix();
+                GlStateManager.popMatrix();
+            }
         }
 
         private String formatNumber(double value) {
