@@ -1,0 +1,14 @@
+{
+  "mappings": {
+    "uwu/ramona/bazaar/mixin/MinecraftMixin": {
+      "startGame": "Lnet/minecraft/client/Minecraft;func_71384_a()V"
+    }
+  },
+  "data": {
+    "named:intermediary": {
+      "uwu/ramona/bazaar/mixin/MinecraftMixin": {
+        "startGame": "Lnet/minecraft/client/Minecraft;func_71384_a()V"
+      }
+    }
+  }
+}
