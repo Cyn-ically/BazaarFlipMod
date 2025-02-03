@@ -42,7 +42,7 @@ This mod does not automate purchases/sales; it only provides information to assi
 
 # Credits
 
-Developed by [Sallie May] using OneConfig.
+Developed by [Ramona] using OneConfig.
 
 Happy flipping! 💰
 
