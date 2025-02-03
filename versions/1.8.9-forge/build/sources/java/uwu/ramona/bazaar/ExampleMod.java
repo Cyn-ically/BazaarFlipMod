@@ -44,7 +44,7 @@ import java.util.concurrent.TimeUnit;
 public class ExampleMod {
     public static final String MODID = "BazaarFlipMod";
     public static final String NAME = "BazaarFlip";
-    public static final String VERSION = "1.0.1";
+    public static final String VERSION = "1.0.2";
     public static BazaarConfig config;
 
     private static BazaarMonitor bazaarMonitor;
@@ -155,10 +155,6 @@ public class ExampleMod {
                 conn.setConnectTimeout(5000);
                 conn.setReadTimeout(5000);
 
-                if (!BazaarConfig.apiKey.isEmpty()) {
-                    conn.setRequestProperty("API-Key", BazaarConfig.apiKey);
-                }
-
                 if (conn.getResponseCode() == 200) {
                     try (BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()))) {
                         StringBuilder response = new StringBuilder();
@@ -218,6 +214,7 @@ public class ExampleMod {
                 e.printStackTrace();
             }
         }
+
         @SubscribeEvent
         public void onRenderGui(GuiScreenEvent.DrawScreenEvent.Post event) {
             if (!isBazaarGuiOpen) return;
@@ -262,10 +259,7 @@ public class ExampleMod {
 
             mc.fontRendererObj.drawStringWithShadow("§l§6Bazaar Flips (Profit %)", scaledX + 5, scaledY + 5, BazaarConfig.getTextColor());
             mc.fontRendererObj.drawStringWithShadow("§l§6Bazaar Flips (Total Profit)", scaledX + 205, scaledY + 5, BazaarConfig.getTextColor());
-            if (BazaarConfig.apiKey.isEmpty()) {
-                mc.fontRendererObj.drawStringWithShadow("§cNo API key, press RShift to set", scaledX + 10, scaledY + 25, 0xFF5555);
-            } else {
-                synchronized (this) {
+            synchronized (this) {
                     int y = scaledY + 25;
                     for (int i = 0; i < 5; i++) {
                         if (i < topItemsByPercentage.size()) {
@@ -282,7 +276,7 @@ public class ExampleMod {
 
                 GlStateManager.popMatrix();
             }
-        }
+
 
         private String formatNumber(double value) {
             if (value >= 1_000_000_000) {
