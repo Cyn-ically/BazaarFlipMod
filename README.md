@@ -29,19 +29,15 @@ Download here : https://github.com/Ramona-Flower/BazaarFlipMod/releases/tag/1.0.
 
 - Locate the settings for the Bazaar Flipping mod.
 
-- Enter your Hypixel API Key (you can generate one at Hypixel API https://developer.hypixel.net/).
-
 - Configure your preferred flipping parameters (e.g., minimun item sold).
 
 ## Save your settings and start flipping!
 
 # Notes
 
-Ensure you have an active Hypixel API key for accurate pricing data.
-
 - Use at your own risk—flipping strategies may change due to market fluctuations.
 
-This mod does not automate purchases/sales; it only provides information to assist with flipping. as it is forbidden !
+This mod does not automate purchases/sales; it only provides information to assist with flipping. as it is forbidden ! it does not uses api-key anymore to not get API banned
 
 # Credits
 
