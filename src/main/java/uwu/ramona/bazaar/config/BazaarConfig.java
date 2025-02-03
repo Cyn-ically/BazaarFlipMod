@@ -13,9 +13,6 @@ public class BazaarConfig extends Config {
     @Switch(name = "Enable Monitoring", size = OptionSize.SINGLE)
     public static boolean enableMonitoring = false;
 
-    @Text(name = "API Key", placeholder = "Enter your Hypixel API key here")
-    public static String apiKey = "";
-
     @Slider(name = "Update Interval (Seconds)", min = 10, max = 60, step = 1)
     public static int updateInterval = 20;
 
