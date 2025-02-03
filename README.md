@@ -1,4 +1,4 @@
-# Hypixel Skyblock Bazaar Flipping Mod
+# Hypixel Skyblock Bazaar Flipping Mod for 1.8.9
 
 ## A mod for automating and optimizing Bazaar flipping in Hypixel Skyblock, built using OneConfig for easy configuration.
 
