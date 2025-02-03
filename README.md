@@ -4,6 +4,9 @@
 
 Download here : https://github.com/Ramona-Flower/BazaarFlipMod/releases/tag/1.0.0
 
+[Discord support server](https://discord.gg/QVJ63F2AaN)
+
+
 # Features
 
 - Bazaar Flipping: Automatically finds profitable items to flip on the Hypixel Bazaar.
