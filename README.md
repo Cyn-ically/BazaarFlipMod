@@ -2,6 +2,8 @@
 
 ## A mod for automating and optimizing Bazaar flipping in Hypixel Skyblock, built using OneConfig for easy configuration.
 
+Download here : https://github.com/Ramona-Flower/BazaarFlipMod/releases/tag/1.0.0
+
 # Features
 
 - Bazaar Flipping: Automatically finds profitable items to flip on the Hypixel Bazaar.
