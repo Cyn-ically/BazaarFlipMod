@@ -6,6 +6,15 @@ Download here : https://github.com/Ramona-Flower/BazaarFlipMod/releases/tag/1.0.
 
 [Discord support server](https://discord.gg/QVJ63F2AaN)
 
+<details>
+  <summary>Click to view images</summary>
+
+  ![2025-02-04_11 19 49](https://github.com/user-attachments/assets/610fd66c-f3bd-4597-b4cd-1004c22ef0b7)
+  ![2025-02-04_11 22 13](https://github.com/user-attachments/assets/0e0761bd-8fb0-47c0-adc7-16c969660838)
+
+
+</details>
+
 
 # Features
 
