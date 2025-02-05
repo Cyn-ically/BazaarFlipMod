@@ -1,7 +1,7 @@
 package uwu.ramona.bazaar.config;
 
 import cc.polyfrost.oneconfig.config.core.OneColor;
-import uwu.ramona.bazaar.ExampleMod;
+import uwu.ramona.bazaar.BazaarFlip;
 import cc.polyfrost.oneconfig.config.Config;
 import cc.polyfrost.oneconfig.config.annotations.*;
 import cc.polyfrost.oneconfig.config.data.Mod;
@@ -21,6 +21,8 @@ public class BazaarConfig extends Config {
 
     @Slider(name = "GUI Y Position", min = 0, max = 1080, step = 1)
     public static int guiY = 100;
+    @Slider(name = "Maximum Spend Limit", min = 100000, max = 100000000, step = 100000)
+    public static int maxSpendLimit = 100000000;
 
     @Slider(name = "GUI Scale", min = 1, max = 5, step = 1)
     public static int guiScale = 3;
@@ -56,7 +58,7 @@ public class BazaarConfig extends Config {
     public static int backgroundOpacity = 224;
 
     public BazaarConfig() {
-        super(new Mod(ExampleMod.NAME, ModType.UTIL_QOL), ExampleMod.MODID + ".json");
+        super(new Mod(BazaarFlip.NAME, ModType.UTIL_QOL), BazaarFlip.MODID + ".json");
         initialize();
     }
 
