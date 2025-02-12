@@ -48,7 +48,7 @@ Download here : https://github.com/Ramona-Flower/BazaarFlipMod/releases/
 
 - Use at your own risk—flipping strategies may change due to market fluctuations.
 
-This mod does not automate purchases/sales; it only provides information to assist with flipping. as it is forbidden !
+This mod does not automate purchases/sales; it only provides information to assist with flipping.
 
 # Credits
 
