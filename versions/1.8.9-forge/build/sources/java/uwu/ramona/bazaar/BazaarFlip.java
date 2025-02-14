@@ -1,55 +1,29 @@
 package uwu.ramona.bazaar;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.item.EntityArmorStand;
-import net.minecraft.world.World;
-import net.minecraftforge.event.entity.EntityJoinWorldEvent;
-import net.minecraftforge.event.entity.living.LivingEvent;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.entity.StringEntity;
 import uwu.ramona.bazaar.config.BazaarConfig;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.item.EntityItem;
-import net.minecraft.world.World;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import net.minecraft.client.Minecraft;
-import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.event.ClickEvent;
 import net.minecraft.util.ChatComponentText;
 import net.minecraft.util.EnumChatFormatting;
-import org.apache.commons.lang3.StringUtils;
-import org.apache.http.HttpResponse;
-import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
-import org.apache.http.util.EntityUtils;
-import net.minecraftforge.fml.common.versioning.DefaultArtifactVersion;
-import net.minecraftforge.event.entity.EntityJoinWorldEvent;
 import net.minecraftforge.fml.common.Mod;
-import org.apache.http.HttpResponse;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
-import org.apache.http.util.EntityUtils;
-import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.inventory.GuiChest;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.gui.ScaledResolution;
 import net.minecraft.client.renderer.Tessellator;
 import net.minecraft.client.renderer.vertex.DefaultVertexFormats;
 import net.minecraft.inventory.ContainerChest;
-import net.minecraft.util.ChatComponentText;
-import net.minecraft.util.EnumChatFormatting;
 import net.minecraftforge.client.event.GuiScreenEvent;
 import net.minecraftforge.common.MinecraftForge;
-import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.common.event.FMLInitializationEvent;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.gameevent.TickEvent;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
 import org.lwjgl.input.Mouse;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
-
 import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -62,8 +36,9 @@ import java.util.concurrent.TimeUnit;
 public class BazaarFlip {
     public static final String MODID = "BazaarFlipMod";
     public static final String NAME = "BazaarFlip";
-    public static final String VERSION = "1.0.4";
+    public static final String VERSION = "1.0.5";
     public static BazaarConfig config;
+
 
     private static BazaarMonitor bazaarMonitor;
     private static boolean hasCheckedForUpdate = false;
@@ -79,6 +54,7 @@ public class BazaarFlip {
     public static class BazaarMonitor {
         private static final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
         private static boolean isMonitoring = false;
+        private static boolean isBackgroundMonitoring = false;
         private static List<BazaarItem> topItemsByPercentage = new ArrayList<>();
         private static List<BazaarItem> topItemsByMoney = new ArrayList<>();
         private static boolean isBazaarGuiOpen = false;
@@ -97,6 +73,24 @@ public class BazaarFlip {
             startMonitoring();
         }
 
+        private void startMonitoring() {
+            if (isMonitoring) return;
+            isMonitoring = true;
+
+            scheduler.scheduleAtFixedRate(() -> {
+                try {
+                    if (BazaarConfig.enableMonitoring && (isBazaarGuiOpen || BazaarConfig.enableBackgroundMonitoring)) {
+                        performBazaarCheck();
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }, BazaarConfig.updateInterval, BazaarConfig.updateInterval, TimeUnit.SECONDS);
+
+            if (BazaarConfig.enableBackgroundMonitoring) {
+                startBackgroundMonitoring();
+            }
+        }
 
         private static class BazaarItem {
             String id;
@@ -115,51 +109,103 @@ public class BazaarFlip {
             }
         }
 
-        private void startMonitoring() {
-            if (isMonitoring || !BazaarConfig.enableMonitoring) return;
-            isMonitoring = true;
-            scheduler.scheduleAtFixedRate(() -> {
-                try {
-                    performBazaarCheck();
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            }, 0, BazaarConfig.updateInterval, TimeUnit.SECONDS);
-        }
+        private void performBackgroundBazaarCheck() {
+            try {
+                URL url = new URL("https://api.hypixel.net/skyblock/bazaar");
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("GET");
+                conn.setConnectTimeout(5000);
+                conn.setReadTimeout(5000);
 
+                if (conn.getResponseCode() == 200) {
+                    try (BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()))) {
+                        StringBuilder response = new StringBuilder();
+                        String line;
+                        while ((line = reader.readLine()) != null) {
+                            response.append(line);
+                        }
 
+                        JsonParser parser = new JsonParser();
+                        JsonObject data = parser.parse(response.toString()).getAsJsonObject();
+                        JsonObject products = data.getAsJsonObject("products");
 
-        @SubscribeEvent
-        public void onClientTick(TickEvent.ClientTickEvent event) {
-            if (event.phase != TickEvent.Phase.END) return;
-            Minecraft mc = Minecraft.getMinecraft();
-            if (mc.thePlayer == null || mc.theWorld == null) return;
+                        List<BazaarItem> backgroundItems = new ArrayList<>();
+                        for (Map.Entry<String, com.google.gson.JsonElement> entry : products.entrySet()) {
+                            String productId = entry.getKey();
+                            JsonObject product = entry.getValue().getAsJsonObject();
+                            JsonObject quickStatus = product.getAsJsonObject("quick_status");
 
-            long currentTime = System.currentTimeMillis();
-            if (currentTime - lastGuiCheck < GUI_CHECK_DELAY) return;
-            lastGuiCheck = currentTime;
+                            double buyPrice = quickStatus.get("buyPrice").getAsDouble();
+                            double sellPrice = quickStatus.get("sellPrice").getAsDouble();
+                            double buyVolume = quickStatus.get("buyVolume").getAsDouble();
+                            double sellVolume = quickStatus.get("sellVolume").getAsDouble();
 
-            if (mc.currentScreen instanceof GuiChest) {
-                GuiChest chest = (GuiChest) mc.currentScreen;
-                if (chest.inventorySlots instanceof ContainerChest) {
-                    ContainerChest containerChest = (ContainerChest) chest.inventorySlots;
-                    String guiTitle = containerChest.getLowerChestInventory().getDisplayName().getUnformattedText();
+                            if (buyVolume > BazaarConfig.minBuyVolume &&
+                                    sellVolume > BazaarConfig.minSellVolume &&
+                                    sellPrice > 0) {
+                                double profit = buyPrice - sellPrice;
+                                double profitMargin = (profit / sellPrice) * 100;
+                                double totalBuyCost = sellPrice * 71680;
+                                double totalSellValue = buyPrice * 71680;
+                                double totalProfit = totalSellValue - totalBuyCost;
 
-                    if (!guiTitle.equals(lastGuiTitle)) {
-                        lastGuiTitle = guiTitle;
-                        if (guiTitle.toLowerCase().contains("bazaar")) {
-                            if (!isBazaarGuiOpen) {
-                                isBazaarGuiOpen = true;
-                                mc.thePlayer.addChatMessage(new ChatComponentText(EnumChatFormatting.GREEN + "Bazaar monitoring active"));
+                                if (totalBuyCost <= BazaarConfig.maxSpendLimit &&
+                                        profitMargin >= BazaarConfig.backgroundAlertThreshold) {
+                                    backgroundItems.add(new BazaarItem(productId, sellPrice, buyPrice,
+                                            profit, profitMargin, totalBuyCost, totalSellValue, totalProfit));
+                                }
+                            }
+                        }
+
+                        List<BazaarItem> backgroundItemsByPercentage = new ArrayList<>(backgroundItems);
+                        backgroundItemsByPercentage.sort((a, b) -> Double.compare(b.profitMargin, a.profitMargin));
+
+                        int percentageLimit = Math.min(backgroundItemsByPercentage.size(),
+                                BazaarConfig.backgroundTopItemsByPercentageCount);
+                        for (int i = 0; i < percentageLimit; i++) {
+                            BazaarItem item = backgroundItemsByPercentage.get(i);
+                            String backgroundMessage = String.format("Background Bazaar Flip (Profit %%): %s (%.2f%% Profit)",
+                                    item.id, item.profitMargin);
+                            if (BazaarConfig.isDiscordAlertEnabled()) {
+                                sendDiscordAlert(backgroundMessage, item);
+                            }
+
+                            if (BazaarConfig.isChatAlertEnabled()) {
+                                sendDiscordAlert(backgroundMessage, item);
+                            }
+                        }
+
+                        List<BazaarItem> backgroundItemsByMoney = new ArrayList<>(backgroundItems);
+                        backgroundItemsByMoney.sort((a, b) -> Double.compare(b.totalProfit, a.totalProfit));
+
+                        int moneyLimit = Math.min(backgroundItemsByMoney.size(),
+                                BazaarConfig.backgroundTopItemsByMoneyCount);
+                        for (int i = 0; i < moneyLimit; i++) {
+                            BazaarItem item = backgroundItemsByMoney.get(i);
+                            String backgroundMessage = String.format("Background Bazaar Flip (Total Profit): %s (%s coins)",
+                                    item.id, formatLargeNumber(item.totalProfit));
+
+                            if (BazaarConfig.isDiscordAlertEnabled()) {
+                                sendDiscordAlert(backgroundMessage, item);
+                            }
+
+                            if (BazaarConfig.isChatAlertEnabled()) {
+                                sendDiscordAlert(backgroundMessage, item);
                             }
                         }
                     }
                 }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+        private static String formatLargeNumber(double value) {
+            if (value >= 1_000_000_000) {
+                return String.format("%.2fB", value / 1_000_000_000);
+            } else if (value >= 1_000_000) {
+                return String.format("%.2fM", value / 1_000_000);
             } else {
-                if (isBazaarGuiOpen) {
-                    isBazaarGuiOpen = false;
-                    lastGuiTitle = "";
-                }
+                return String.format("%.0f", value);
             }
         }
 
@@ -204,27 +250,56 @@ public class BazaarFlip {
                                 double totalSellValue = buyPrice * 71680;
                                 double totalProfit = totalSellValue - totalBuyCost;
 
-                                if (totalBuyCost <= BazaarConfig.maxSpendLimit) {
-                                    if (profitMargin >= 33) {
-                                        allItems.add(new BazaarItem(productId, sellPrice, buyPrice, profit,
-                                                profitMargin, totalBuyCost, totalSellValue, totalProfit));
-                                    }
+                                if (totalBuyCost <= BazaarConfig.maxSpendLimit &&
+                                        profitMargin >= 33) {
+                                    allItems.add(new BazaarItem(productId, sellPrice, buyPrice,
+                                            profit, profitMargin, totalBuyCost, totalSellValue, totalProfit));
                                 }
                             }
                         }
 
                         synchronized (this) {
-                            topItemsByPercentage = new ArrayList<>(allItems);
-                            topItemsByMoney = new ArrayList<>(allItems);
 
-                            topItemsByPercentage.sort((a, b) -> Double.compare(b.profitMargin, a.profitMargin));
-                            topItemsByMoney.sort((a, b) -> Double.compare(b.totalProfit, a.totalProfit));
+                            List<BazaarItem> itemsByPercentage = new ArrayList<>(allItems);
+                            itemsByPercentage.sort((a, b) -> Double.compare(b.profitMargin, a.profitMargin));
 
-                            if (topItemsByPercentage.size() > 5) {
-                                topItemsByPercentage = topItemsByPercentage.subList(0, 5);
+                            int percentageLimit = Math.min(itemsByPercentage.size(),
+                                    BazaarConfig.bazaarGuiTopItemsByPercentageCount);
+                            topItemsByPercentage = itemsByPercentage.subList(0, percentageLimit);
+
+                            if (!topItemsByPercentage.isEmpty()) {
+                                BazaarItem topItem = topItemsByPercentage.get(0);
+                                String message = String.format("Top Bazaar Flips (Profit %%): %s (%.2f%%)",
+                                        topItem.id, topItem.profitMargin);
+                                if (BazaarConfig.isDiscordAlertEnabled()) {
+                                    sendDiscordAlert(message, topItem);
+
+                                }
+                               if (BazaarConfig.isChatAlertEnabled()) {
+                                    sendInChatAlert(message);
+
+                                }
                             }
-                            if (topItemsByMoney.size() > 5) {
-                                topItemsByMoney = topItemsByMoney.subList(0, 5);
+
+                            List<BazaarItem> itemsByMoney = new ArrayList<>(allItems);
+                            itemsByMoney.sort((a, b) -> Double.compare(b.totalProfit, a.totalProfit));
+
+                            int moneyLimit = Math.min(itemsByMoney.size(),
+                                    BazaarConfig.bazaarGuiTopItemsByMoneyCount);
+                            topItemsByMoney = itemsByMoney.subList(0, moneyLimit);
+
+                            if (!topItemsByMoney.isEmpty()) {
+                                BazaarItem topItem = topItemsByMoney.get(0);
+                                String message = String.format("Top Bazaar Flips (Total Profit): %s (%s coins)",
+                                        topItem.id, formatLargeNumber(topItem.totalProfit));
+                                if (BazaarConfig.isDiscordAlertEnabled()) {
+                                    sendDiscordAlert(message, topItem);
+
+                                }
+                                if (BazaarConfig.isChatAlertEnabled()) {
+                                    sendInChatAlert(message);
+
+                                }
                             }
                         }
                     }
@@ -234,6 +309,155 @@ public class BazaarFlip {
             }
         }
 
+        private void startBackgroundMonitoring() {
+            if (isBackgroundMonitoring || !BazaarConfig.enableBackgroundMonitoring) return;
+            isBackgroundMonitoring = true;
+
+            scheduler.scheduleAtFixedRate(() -> {
+                try {
+                    if (!isBazaarGuiOpen && BazaarConfig.enableBackgroundMonitoring) {
+                        performBackgroundBazaarCheck();
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }, 0, BazaarConfig.backgroundMonitoringInterval, TimeUnit.SECONDS);
+        }
+
+        @SubscribeEvent
+        public void onClientTick(TickEvent.ClientTickEvent event) {
+            if (event.phase != TickEvent.Phase.END) return;
+            Minecraft mc = Minecraft.getMinecraft();
+            if (mc.thePlayer == null || mc.theWorld == null) return;
+
+            long currentTime = System.currentTimeMillis();
+            if (currentTime - lastGuiCheck < GUI_CHECK_DELAY) return;
+            lastGuiCheck = currentTime;
+
+            if (mc.currentScreen instanceof GuiChest) {
+                GuiChest chest = (GuiChest) mc.currentScreen;
+                if (chest.inventorySlots instanceof ContainerChest) {
+                    ContainerChest containerChest = (ContainerChest) chest.inventorySlots;
+                    String guiTitle = containerChest.getLowerChestInventory().getDisplayName().getUnformattedText();
+
+                    if (!guiTitle.equals(lastGuiTitle)) {
+                        lastGuiTitle = guiTitle;
+                        if (guiTitle.toLowerCase().contains("bazaar")) {
+                            if (!isBazaarGuiOpen) {
+                                isBazaarGuiOpen = true;
+                                mc.thePlayer.addChatMessage(new ChatComponentText(EnumChatFormatting.GREEN + "Bazaar monitoring active"));
+
+                                if (BazaarConfig.enableMonitoring) {
+                                    new Thread(() -> {
+                                        try {
+                                            performBazaarCheck();
+                                        } catch (Exception e) {
+                                            e.printStackTrace();
+                                        }
+                                    }).start();
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                if (isBazaarGuiOpen) {
+                    isBazaarGuiOpen = false;
+                    lastGuiTitle = "";
+                }
+            }
+        }
+        private static void sendDiscordAlert(String message, BazaarItem item) {
+            if (!BazaarConfig.isDiscordAlertEnabled() && BazaarConfig.enableBackgroundMonitoring) {
+                return;
+            }
+
+            try {
+                String webhookUrl = BazaarConfig.webhookUrl;
+                CloseableHttpClient client = HttpClients.createDefault();
+                HttpPost post = new HttpPost(webhookUrl);
+                post.setHeader("Content-Type", "application/json");
+
+                try {
+                    String jsonPayload = "{"
+                            + "\"content\": \"" + message + "\","
+                            + "\"embeds\": ["
+                            + "{"
+                            + "\"title\": \"Bazaar Flip Detected!\","
+                            + "\"description\": \"A profitable Bazaar flip has been detected.\","
+                            + "\"color\": 3066993,"
+                            + "\"fields\": ["
+                            + "{"
+                            + "\"name\": \"Item ID\","
+                            + "\"value\": \"" + item.id + "\","
+                            + "\"inline\": true"
+                            + "},"
+                            + "{"
+                            + "\"name\": \"Profit Margin\","
+                            + "\"value\": \"" + String.format("%.2f", item.profitMargin) + "%\","
+                            + "\"inline\": true"
+                            + "},"
+                            + "{"
+                            + "\"name\": \"Buy Price\","
+                            + "\"value\": \"" + formatLargeNumber(item.buyPrice) + " coins\","
+                            + "\"inline\": true"
+                            + "},"
+                            + "{"
+                            + "\"name\": \"Sell Price\","
+                            + "\"value\": \"" + formatLargeNumber(item.sellPrice) + " coins\","
+                            + "\"inline\": true"
+                            + "}"
+                            + "],"
+                            + "\"footer\": {"
+                            + "\"text\": \"Bazaar Flip Mod | By BazaarFlip\""
+                            + "}"
+                            + "}"
+                            + "]"
+                            + "}";
+
+
+                    post.setEntity(new StringEntity(jsonPayload));
+
+                    client.execute(post);
+                    client.close();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+
+
+
+
+        private static void sendInChatAlert(String message) {
+            if (!BazaarConfig.isChatAlertEnabled() && BazaarConfig.enableBackgroundMonitoring) {
+                return;
+            }
+
+            Minecraft mc = Minecraft.getMinecraft();
+            mc.thePlayer.addChatMessage(new ChatComponentText(EnumChatFormatting.GREEN + message));
+        }
+
+
+
+        private static String formatNumbers(double number) {
+            return String.format("%,.0f", number);
+        }
+
+
+        private void sendBackgroundAlert(BazaarItem item) {
+            String backgroundMessage = "Background Bazaar Flip: " + item.id +
+                    String.format(" (%.2f%% Profit)", item.profitMargin);
+            if (BazaarConfig.isChatAlertEnabled()) {
+                sendDiscordAlert(backgroundMessage, item);
+            }
+            if (BazaarConfig.isDiscordAlertEnabled()) {
+                sendInChatAlert(backgroundMessage);
+
+            }
+        }
 
         @SubscribeEvent
         public void onRenderGui(GuiScreenEvent.DrawScreenEvent.Post event) {
