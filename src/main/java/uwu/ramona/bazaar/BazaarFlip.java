@@ -1,4 +1,5 @@
 package uwu.ramona.bazaar;
+import com.google.gson.JsonArray;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.StringEntity;
 import uwu.ramona.bazaar.config.BazaarConfig;
@@ -36,7 +37,7 @@ import java.util.concurrent.TimeUnit;
 public class BazaarFlip {
     public static final String MODID = "BazaarFlipMod";
     public static final String NAME = "BazaarFlip";
-    public static final String VERSION = "1.0.5";
+    public static final String VERSION = "1.0.6";
     public static BazaarConfig config;
 
 
@@ -94,13 +95,13 @@ public class BazaarFlip {
 
         private static class BazaarItem {
             String id;
-            double sellPrice, buyPrice, profit, profitMargin, totalBuyCost, totalSellValue, totalProfit;
+            double buyPrice, sellPrice, profit, profitMargin, totalBuyCost, totalSellValue, totalProfit;
 
-            BazaarItem(String id, double sellPrice, double buyPrice, double profit, double profitMargin,
+            BazaarItem(String id, double buyPrice, double sellPrice, double profit, double profitMargin,
                        double totalBuyCost, double totalSellValue, double totalProfit) {
                 this.id = id;
-                this.sellPrice = sellPrice;
                 this.buyPrice = buyPrice;
+                this.sellPrice = sellPrice;
                 this.profit = profit;
                 this.profitMargin = profitMargin;
                 this.totalBuyCost = totalBuyCost;
@@ -133,25 +134,39 @@ public class BazaarFlip {
                         for (Map.Entry<String, com.google.gson.JsonElement> entry : products.entrySet()) {
                             String productId = entry.getKey();
                             JsonObject product = entry.getValue().getAsJsonObject();
-                            JsonObject quickStatus = product.getAsJsonObject("quick_status");
 
-                            double buyPrice = quickStatus.get("buyPrice").getAsDouble();
-                            double sellPrice = quickStatus.get("sellPrice").getAsDouble();
+                            JsonArray sellSummary = product.getAsJsonArray("sell_summary");
+                            JsonArray buySummary = product.getAsJsonArray("buy_summary");
+
+                            double buyPrice = 0;
+                            double sellPrice = 0;
+
+                            if (sellSummary != null && sellSummary.size() > 0) {
+                                JsonObject firstSellOrder = sellSummary.get(0).getAsJsonObject();
+                                buyPrice = firstSellOrder.get("pricePerUnit").getAsDouble();
+                            }
+
+                            if (buySummary != null && buySummary.size() > 0) {
+                                JsonObject firstBuyOrder = buySummary.get(0).getAsJsonObject();
+                                sellPrice = firstBuyOrder.get("pricePerUnit").getAsDouble();
+                            }
+
+                            JsonObject quickStatus = product.getAsJsonObject("quick_status");
                             double buyVolume = quickStatus.get("buyVolume").getAsDouble();
                             double sellVolume = quickStatus.get("sellVolume").getAsDouble();
 
                             if (buyVolume > BazaarConfig.minBuyVolume &&
                                     sellVolume > BazaarConfig.minSellVolume &&
-                                    sellPrice > 0) {
-                                double profit = buyPrice - sellPrice;
-                                double profitMargin = (profit / sellPrice) * 100;
-                                double totalBuyCost = sellPrice * 71680;
-                                double totalSellValue = buyPrice * 71680;
+                                    buyPrice > 0) {
+                                double profit = sellPrice - buyPrice;
+                                double profitMargin = (profit / buyPrice) * 100;
+                                double totalBuyCost = buyPrice * 71680;
+                                double totalSellValue = sellPrice * 71680;
                                 double totalProfit = totalSellValue - totalBuyCost;
 
                                 if (totalBuyCost <= BazaarConfig.maxSpendLimit &&
                                         profitMargin >= BazaarConfig.backgroundAlertThreshold) {
-                                    backgroundItems.add(new BazaarItem(productId, sellPrice, buyPrice,
+                                    backgroundItems.add(new BazaarItem(productId, buyPrice, sellPrice,
                                             profit, profitMargin, totalBuyCost, totalSellValue, totalProfit));
                                 }
                             }
@@ -169,9 +184,8 @@ public class BazaarFlip {
                             if (BazaarConfig.isDiscordAlertEnabled()) {
                                 sendDiscordAlert(backgroundMessage, item);
                             }
-
                             if (BazaarConfig.isChatAlertEnabled()) {
-                                sendDiscordAlert(backgroundMessage, item);
+                                sendInChatAlert(backgroundMessage);
                             }
                         }
 
@@ -188,9 +202,8 @@ public class BazaarFlip {
                             if (BazaarConfig.isDiscordAlertEnabled()) {
                                 sendDiscordAlert(backgroundMessage, item);
                             }
-
                             if (BazaarConfig.isChatAlertEnabled()) {
-                                sendDiscordAlert(backgroundMessage, item);
+                                sendInChatAlert(backgroundMessage);
                             }
                         }
                     }
@@ -199,6 +212,7 @@ public class BazaarFlip {
                 e.printStackTrace();
             }
         }
+
         private static String formatLargeNumber(double value) {
             if (value >= 1_000_000_000) {
                 return String.format("%.2fB", value / 1_000_000_000);
@@ -208,7 +222,6 @@ public class BazaarFlip {
                 return String.format("%.0f", value);
             }
         }
-
 
         private void performBazaarCheck() {
             try {
@@ -234,32 +247,45 @@ public class BazaarFlip {
                         for (Map.Entry<String, com.google.gson.JsonElement> entry : products.entrySet()) {
                             String productId = entry.getKey();
                             JsonObject product = entry.getValue().getAsJsonObject();
-                            JsonObject quickStatus = product.getAsJsonObject("quick_status");
 
-                            double buyPrice = quickStatus.get("buyPrice").getAsDouble();
-                            double sellPrice = quickStatus.get("sellPrice").getAsDouble();
+                            JsonArray sellSummary = product.getAsJsonArray("sell_summary");
+                            JsonArray buySummary = product.getAsJsonArray("buy_summary");
+
+                            double buyPrice = 0;
+                            double sellPrice = 0;
+
+                            if (sellSummary != null && sellSummary.size() > 0) {
+                                JsonObject firstSellOrder = sellSummary.get(0).getAsJsonObject();
+                                buyPrice = firstSellOrder.get("pricePerUnit").getAsDouble();
+                            }
+
+                            if (buySummary != null && buySummary.size() > 0) {
+                                JsonObject firstBuyOrder = buySummary.get(0).getAsJsonObject();
+                                sellPrice = firstBuyOrder.get("pricePerUnit").getAsDouble();
+                            }
+
+                            JsonObject quickStatus = product.getAsJsonObject("quick_status");
                             double buyVolume = quickStatus.get("buyVolume").getAsDouble();
                             double sellVolume = quickStatus.get("sellVolume").getAsDouble();
 
                             if (buyVolume > BazaarConfig.minBuyVolume &&
                                     sellVolume > BazaarConfig.minSellVolume &&
-                                    sellPrice > 0) {
-                                double profit = buyPrice - sellPrice;
-                                double profitMargin = (profit / sellPrice) * 100;
-                                double totalBuyCost = sellPrice * 71680;
-                                double totalSellValue = buyPrice * 71680;
+                                    buyPrice > 0) {
+                                double profit = sellPrice - buyPrice;
+                                double profitMargin = (profit / buyPrice) * 100;
+                                double totalBuyCost = buyPrice * 71680;
+                                double totalSellValue = sellPrice * 71680;
                                 double totalProfit = totalSellValue - totalBuyCost;
 
                                 if (totalBuyCost <= BazaarConfig.maxSpendLimit &&
                                         profitMargin >= 33) {
-                                    allItems.add(new BazaarItem(productId, sellPrice, buyPrice,
+                                    allItems.add(new BazaarItem(productId, buyPrice, sellPrice,
                                             profit, profitMargin, totalBuyCost, totalSellValue, totalProfit));
                                 }
                             }
                         }
 
                         synchronized (this) {
-
                             List<BazaarItem> itemsByPercentage = new ArrayList<>(allItems);
                             itemsByPercentage.sort((a, b) -> Double.compare(b.profitMargin, a.profitMargin));
 
@@ -273,11 +299,9 @@ public class BazaarFlip {
                                         topItem.id, topItem.profitMargin);
                                 if (BazaarConfig.isDiscordAlertEnabled()) {
                                     sendDiscordAlert(message, topItem);
-
                                 }
-                               if (BazaarConfig.isChatAlertEnabled()) {
+                                if (BazaarConfig.isChatAlertEnabled()) {
                                     sendInChatAlert(message);
-
                                 }
                             }
 
@@ -294,11 +318,9 @@ public class BazaarFlip {
                                         topItem.id, formatLargeNumber(topItem.totalProfit));
                                 if (BazaarConfig.isDiscordAlertEnabled()) {
                                     sendDiscordAlert(message, topItem);
-
                                 }
                                 if (BazaarConfig.isChatAlertEnabled()) {
                                     sendInChatAlert(message);
-
                                 }
                             }
                         }
@@ -308,6 +330,7 @@ public class BazaarFlip {
                 e.printStackTrace();
             }
         }
+
 
         private void startBackgroundMonitoring() {
             if (isBackgroundMonitoring || !BazaarConfig.enableBackgroundMonitoring) return;
@@ -367,6 +390,7 @@ public class BazaarFlip {
                 }
             }
         }
+
         private static void sendDiscordAlert(String message, BazaarItem item) {
             if (!BazaarConfig.isDiscordAlertEnabled() && BazaarConfig.enableBackgroundMonitoring) {
                 return;
@@ -415,7 +439,6 @@ public class BazaarFlip {
                             + "]"
                             + "}";
 
-
                     post.setEntity(new StringEntity(jsonPayload));
 
                     client.execute(post);
@@ -428,9 +451,6 @@ public class BazaarFlip {
             }
         }
 
-
-
-
         private static void sendInChatAlert(String message) {
             if (!BazaarConfig.isChatAlertEnabled() && BazaarConfig.enableBackgroundMonitoring) {
                 return;
@@ -440,12 +460,9 @@ public class BazaarFlip {
             mc.thePlayer.addChatMessage(new ChatComponentText(EnumChatFormatting.GREEN + message));
         }
 
-
-
         private static String formatNumbers(double number) {
             return String.format("%,.0f", number);
         }
-
 
         private void sendBackgroundAlert(BazaarItem item) {
             String backgroundMessage = "Background Bazaar Flip: " + item.id +
@@ -455,7 +472,6 @@ public class BazaarFlip {
             }
             if (BazaarConfig.isDiscordAlertEnabled()) {
                 sendInChatAlert(backgroundMessage);
-
             }
         }
 
@@ -521,7 +537,6 @@ public class BazaarFlip {
             GlStateManager.popMatrix();
         }
 
-
         private String formatNumber(double value) {
             if (value >= 1_000_000_000) {
                 return String.format("%.2fB", value / 1_000_000_000);
@@ -534,7 +549,6 @@ public class BazaarFlip {
             }
         }
 
-
         private void drawItemInfo(Minecraft mc, BazaarItem item, int x, int y, boolean isPercentage) {
             int profitColor = getProfitColor(item.profitMargin);
             int normalTextColor = BazaarConfig.getTextColor();
@@ -545,7 +559,7 @@ public class BazaarFlip {
             mc.fontRendererObj.drawStringWithShadow("§l" + item.id, x, y, profitColorWithOpacity);
             y += lineHeight + 5;
             mc.fontRendererObj.drawStringWithShadow(
-                    String.format("Buy: %s  |  Sell: %s", formatNumber(item.sellPrice), formatNumber(item.buyPrice)),
+                    String.format("Buy: %s  |  Sell: %s", formatNumber(item.buyPrice), formatNumber(item.sellPrice)),
                     x, y, normalTextColor);
             y += lineHeight;
             if (isPercentage) {
@@ -571,10 +585,6 @@ public class BazaarFlip {
                 y += (100 - totalHeight);
             }
         }
-
-
-
-
 
         private static int getProfitColor(double profitMargin) {
             if (profitMargin >= 10000) return 0xFF0000;
@@ -616,6 +626,5 @@ public class BazaarFlip {
             GlStateManager.enableTexture2D();
             GlStateManager.disableBlend();
         }
-
     }
 }
