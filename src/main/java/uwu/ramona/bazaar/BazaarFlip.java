@@ -1,45 +1,56 @@
 package uwu.ramona.bazaar;
+
+import cc.polyfrost.oneconfig.utils.commands.CommandManager;
 import com.google.gson.JsonArray;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.entity.StringEntity;
-import uwu.ramona.bazaar.config.BazaarConfig;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import net.minecraft.client.Minecraft;
-import net.minecraft.util.ChatComponentText;
-import net.minecraft.util.EnumChatFormatting;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
-import net.minecraftforge.fml.common.Mod;
+import net.minecraft.client.gui.ScaledResolution;
 import net.minecraft.client.gui.inventory.GuiChest;
 import net.minecraft.client.renderer.GlStateManager;
-import net.minecraft.client.gui.ScaledResolution;
 import net.minecraft.client.renderer.Tessellator;
 import net.minecraft.client.renderer.vertex.DefaultVertexFormats;
 import net.minecraft.inventory.ContainerChest;
+import net.minecraft.util.ChatComponentText;
+import net.minecraft.util.EnumChatFormatting;
+import net.minecraftforge.client.event.ClientChatReceivedEvent;
 import net.minecraftforge.client.event.GuiScreenEvent;
 import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.common.event.FMLInitializationEvent;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.gameevent.TickEvent;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.entity.StringEntity;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClients;
 import org.lwjgl.input.Mouse;
-import java.io.*;
+import uwu.ramona.bazaar.command.OpenCommand;
+import uwu.ramona.bazaar.command.OpenCommand2;
+import uwu.ramona.bazaar.config.BazaarConfig;
+
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Mod(modid = BazaarFlip.MODID, name = BazaarFlip.NAME, version = BazaarFlip.VERSION)
 public class BazaarFlip {
     public static final String MODID = "BazaarFlipMod";
     public static final String NAME = "BazaarFlip";
-    public static final String VERSION = "1.0.6";
+    public static final String VERSION = "1.0.7";
     public static BazaarConfig config;
-
+    public static BazaarFlip INSTANCE;
 
     private static BazaarMonitor bazaarMonitor;
     private static boolean hasCheckedForUpdate = false;
@@ -49,7 +60,12 @@ public class BazaarFlip {
         config = new BazaarConfig();
         bazaarMonitor = new BazaarMonitor();
         MinecraftForge.EVENT_BUS.register(bazaarMonitor);
+        CommandManager.INSTANCE.registerCommand(new OpenCommand());
+        CommandManager.INSTANCE.registerCommand(new OpenCommand2());
+        MinecraftForge.EVENT_BUS.register(this);
+
     }
+
 
     @SideOnly(Side.CLIENT)
     public static class BazaarMonitor {
@@ -63,12 +79,9 @@ public class BazaarFlip {
         private static long lastGuiCheck = 0;
         private static final long GUI_CHECK_DELAY = 500;
 
-        private static int guiX = BazaarConfig.guiX;
-        private static int guiY = BazaarConfig.guiY;
         private static boolean isDragging = false;
         private static int dragOffsetX = 0;
         private static int dragOffsetY = 0;
-        private static int guiScale = BazaarConfig.guiScale;
 
         public BazaarMonitor() {
             startMonitoring();
@@ -165,7 +178,8 @@ public class BazaarFlip {
                                 double totalProfit = totalSellValue - totalBuyCost;
 
                                 if (totalBuyCost <= BazaarConfig.maxSpendLimit &&
-                                        profitMargin >= BazaarConfig.backgroundAlertThreshold) {
+                                        profitMargin >= BazaarConfig.backgroundAlertThreshold &&
+                                        profitMargin <= BazaarConfig.backgroundAlertMaxThreshold) {
                                     backgroundItems.add(new BazaarItem(productId, buyPrice, sellPrice,
                                             profit, profitMargin, totalBuyCost, totalSellValue, totalProfit));
                                 }
@@ -181,10 +195,10 @@ public class BazaarFlip {
                             BazaarItem item = backgroundItemsByPercentage.get(i);
                             String backgroundMessage = String.format("Background Bazaar Flip (Profit %%): %s (%.2f%% Profit)",
                                     item.id, item.profitMargin);
-                            if (BazaarConfig.isDiscordAlertEnabled()) {
+                            if (BazaarConfig.isDiscordAlertEnabled() & BazaarConfig.enableBackgroundMonitoring) {
                                 sendDiscordAlert(backgroundMessage, item);
                             }
-                            if (BazaarConfig.isChatAlertEnabled()) {
+                            if (BazaarConfig.isChatAlertEnabled() & BazaarConfig.enableBackgroundMonitoring) {
                                 sendInChatAlert(backgroundMessage);
                             }
                         }
@@ -213,6 +227,7 @@ public class BazaarFlip {
             }
         }
 
+
         private static String formatLargeNumber(double value) {
             if (value >= 1_000_000_000) {
                 return String.format("%.2fB", value / 1_000_000_000);
@@ -220,6 +235,48 @@ public class BazaarFlip {
                 return String.format("%.2fM", value / 1_000_000);
             } else {
                 return String.format("%.0f", value);
+            }
+        }
+        @SubscribeEvent
+        public void onChatReceived(ClientChatReceivedEvent event) {
+            String message = event.message.getUnformattedText();
+
+            String cleanMessage = message.replaceAll("§.", "").trim();
+
+            boolean isSellAlertEnabled = BazaarConfig.enableSellTitleAlert;
+            boolean isBuyAlertEnabled = BazaarConfig.enableBuyTitleAlert;
+
+            if ((cleanMessage.contains("[Bazaar] Your Sell Offer for") && isSellAlertEnabled) ||
+                    (cleanMessage.contains("[Bazaar] Your Buy Order for") && isBuyAlertEnabled)) {
+
+                Minecraft mc = Minecraft.getMinecraft();
+                if (mc == null) {
+                    return;
+                }
+                if (mc.ingameGUI == null) {
+                    return;
+                }
+
+                mc.ingameGUI.displayTitle(
+                        EnumChatFormatting.RED + "§l⚠ TRADE ALERT ⚠",
+                        null,
+                        10,
+                        60,
+                        10
+                );
+
+                String tradeInfo = cleanMessage.contains("Your Sell Offer for") ? "Sell offer completed!" : "Buy order completed!";
+                mc.ingameGUI.displayTitle(
+                        null,
+                        EnumChatFormatting.YELLOW + tradeInfo,
+                        10,
+                        60,
+                        10
+                );
+
+                if (cleanMessage.startsWith("[Bazaar] Your Sell Offer for")) {
+                    mc.thePlayer.playSound("random.successful_hit", 1.0F, 1.0F);
+                }
             }
         }
 
@@ -278,7 +335,8 @@ public class BazaarFlip {
                                 double totalProfit = totalSellValue - totalBuyCost;
 
                                 if (totalBuyCost <= BazaarConfig.maxSpendLimit &&
-                                        profitMargin >= 33) {
+                                        profitMargin >= BazaarConfig.backgroundAlertThreshold &&
+                                        profitMargin <= BazaarConfig.backgroundAlertMaxThreshold) {
                                     allItems.add(new BazaarItem(productId, buyPrice, sellPrice,
                                             profit, profitMargin, totalBuyCost, totalSellValue, totalProfit));
                                 }
@@ -293,17 +351,6 @@ public class BazaarFlip {
                                     BazaarConfig.bazaarGuiTopItemsByPercentageCount);
                             topItemsByPercentage = itemsByPercentage.subList(0, percentageLimit);
 
-                            if (!topItemsByPercentage.isEmpty()) {
-                                BazaarItem topItem = topItemsByPercentage.get(0);
-                                String message = String.format("Top Bazaar Flips (Profit %%): %s (%.2f%%)",
-                                        topItem.id, topItem.profitMargin);
-                                if (BazaarConfig.isDiscordAlertEnabled()) {
-                                    sendDiscordAlert(message, topItem);
-                                }
-                                if (BazaarConfig.isChatAlertEnabled()) {
-                                    sendInChatAlert(message);
-                                }
-                            }
 
                             List<BazaarItem> itemsByMoney = new ArrayList<>(allItems);
                             itemsByMoney.sort((a, b) -> Double.compare(b.totalProfit, a.totalProfit));
@@ -312,17 +359,8 @@ public class BazaarFlip {
                                     BazaarConfig.bazaarGuiTopItemsByMoneyCount);
                             topItemsByMoney = itemsByMoney.subList(0, moneyLimit);
 
-                            if (!topItemsByMoney.isEmpty()) {
-                                BazaarItem topItem = topItemsByMoney.get(0);
-                                String message = String.format("Top Bazaar Flips (Total Profit): %s (%s coins)",
-                                        topItem.id, formatLargeNumber(topItem.totalProfit));
-                                if (BazaarConfig.isDiscordAlertEnabled()) {
-                                    sendDiscordAlert(message, topItem);
-                                }
-                                if (BazaarConfig.isChatAlertEnabled()) {
-                                    sendInChatAlert(message);
-                                }
-                            }
+
+                            
                         }
                     }
                 }
@@ -467,10 +505,10 @@ public class BazaarFlip {
         private void sendBackgroundAlert(BazaarItem item) {
             String backgroundMessage = "Background Bazaar Flip: " + item.id +
                     String.format(" (%.2f%% Profit)", item.profitMargin);
-            if (BazaarConfig.isChatAlertEnabled()) {
+            if (BazaarConfig.isChatAlertEnabled() & BazaarConfig.enableBackgroundMonitoring) {
                 sendDiscordAlert(backgroundMessage, item);
             }
-            if (BazaarConfig.isDiscordAlertEnabled()) {
+            if (BazaarConfig.isDiscordAlertEnabled() & BazaarConfig.enableBackgroundMonitoring) {
                 sendInChatAlert(backgroundMessage);
             }
         }
@@ -556,12 +594,15 @@ public class BazaarFlip {
 
             int lineHeight = 10;
             int initialY = y;
+
             mc.fontRendererObj.drawStringWithShadow("§l" + item.id, x, y, profitColorWithOpacity);
             y += lineHeight + 5;
+
             mc.fontRendererObj.drawStringWithShadow(
                     String.format("Buy: %s  |  Sell: %s", formatNumber(item.buyPrice), formatNumber(item.sellPrice)),
                     x, y, normalTextColor);
             y += lineHeight;
+
             if (isPercentage) {
                 mc.fontRendererObj.drawStringWithShadow(
                         String.format("Profit: %s (%.2f%%)", formatNumber(item.profit), item.profitMargin),
@@ -572,6 +613,7 @@ public class BazaarFlip {
                         x, y, profitColorWithOpacity);
             }
             y += lineHeight;
+
             mc.fontRendererObj.drawStringWithShadow(
                     String.format("Total Buy Cost: %s", formatNumber(item.totalBuyCost)),
                     x, y, normalTextColor);
@@ -580,6 +622,7 @@ public class BazaarFlip {
                     String.format("Total Sell Value: %s", formatNumber(item.totalSellValue)),
                     x, y, normalTextColor);
             y += lineHeight;
+
             int totalHeight = y - initialY;
             if (totalHeight < 100) {
                 y += (100 - totalHeight);
