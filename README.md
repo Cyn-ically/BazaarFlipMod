@@ -2,7 +2,7 @@
 
 ## A mod to optimize Bazaar flipping in Hypixel Skyblock, built using OneConfig for easy configuration.
 
-Download here : https://github.com/Ramona-Flower/BazaarFlipMod/releases/
+Download here : https://github.com/cyn-ically/BazaarFlipMod/releases/
 
 [Discord support server](https://discord.gg/QVJ63F2AaN)
 
